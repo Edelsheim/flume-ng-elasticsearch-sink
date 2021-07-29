@@ -20,28 +20,26 @@ package org.apache.flume.sink.elasticsearch.client;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 
 import org.apache.flume.Context;
 import org.apache.flume.Event;
 import org.apache.flume.sink.elasticsearch.ElasticSearchEventSerializer;
+import org.apache.flume.sink.elasticsearch.ElasticSearchIndexRequestBuilderFactory;
 import org.apache.flume.sink.elasticsearch.IndexNameBuilder;
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.FieldMapper.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import org.apache.flume.sink.elasticsearch.ElasticSearchIndexRequestBuilderFactory;
 
 import static org.apache.flume.sink.elasticsearch.ElasticSearchSinkConstants.DEFAULT_PORT;
 
@@ -51,8 +49,10 @@ public class ElasticSearchTransportClient implements ElasticSearchClient {
       .getLogger(ElasticSearchTransportClient.class);
 
   private TransportAddress[] serverAddresses;
+
   private ElasticSearchEventSerializer serializer;
-  private ElasticSearchIndexRequestBuilderFactory indexRequestBuilderFactory;
+  private ElasticSearchIndexRequestBuilderFactory indexBuilder;
+
   //private BulkRequestBuilder bulkRequestBuilder;
   private BulkRequest bulkRequestBuilder;
 
@@ -79,15 +79,15 @@ public class ElasticSearchTransportClient implements ElasticSearchClient {
   public ElasticSearchTransportClient(String[] hostNames, String clusterName,
       ElasticSearchEventSerializer serializer) {
     configureHostnames(hostNames);
-    this.serializer = serializer;
     openClient(clusterName);
+    this.serializer = serializer;
   }
 
   public ElasticSearchTransportClient(String[] hostNames, String clusterName,
       ElasticSearchIndexRequestBuilderFactory indexBuilder) {
     configureHostnames(hostNames);
-    this.indexRequestBuilderFactory = indexBuilder;
     openClient(clusterName);
+    this.indexBuilder = indexBuilder;
   }
   
   /**
@@ -96,7 +96,7 @@ public class ElasticSearchTransportClient implements ElasticSearchClient {
    * @param indexBuilderFactory
    */
   public ElasticSearchTransportClient(ElasticSearchIndexRequestBuilderFactory indexBuilderFactory) {
-    this.indexRequestBuilderFactory = indexBuilderFactory;
+    this.indexBuilder = indexBuilderFactory;
     openLocalDiscoveryClient();
   }
   
@@ -164,15 +164,19 @@ public class ElasticSearchTransportClient implements ElasticSearchClient {
     if (bulkRequestBuilder == null) {
 	    bulkRequestBuilder = new BulkRequest();
     }
-	    IndexRequest request = new IndexRequest(indexNameBuilder.getIndexName(event));
-      request.source(event.getBody(), XContentType.JSON);
-      bulkRequestBuilder.add(request);
+
+    XContentBuilder content = this.serializer.getContentBuilder(event);
+    content.endObject();
+
+	  IndexRequest request = new IndexRequest(indexNameBuilder.getIndexName(event));
+    request.source(content);
+    bulkRequestBuilder.add(request);
   }
 
   @Override
   public void execute() throws Exception {
     try {
-     BulkResponse response = client.bulk(bulkRequestBuilder, RequestOptions.DEFAULT);
+      client.bulk(bulkRequestBuilder, RequestOptions.DEFAULT);
     } finally {
       bulkRequestBuilder = new BulkRequest();
     }

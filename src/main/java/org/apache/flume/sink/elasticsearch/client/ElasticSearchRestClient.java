@@ -30,7 +30,8 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
+//import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.slf4j.Logger;
@@ -72,7 +73,8 @@ public class  ElasticSearchRestClient implements ElasticSearchClient {
     this.serializer = serializer;
 
     serversList = new RoundRobinList<String>(Arrays.asList(hostNames));
-    httpClient = new DefaultHttpClient();
+    //httpClient = new DefaultHttpClient();
+    httpClient = HttpClientBuilder.create().build();
     bulkBuilder = new StringBuilder();
   }
 
